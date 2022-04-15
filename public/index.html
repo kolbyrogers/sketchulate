@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>Sketchulate</title>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+		<link
+			rel="stylesheet"
+			href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
+		/>
+	</head>
+	<body class="text-white text-center h-100 bg-dark">
+		<div class="container container-fluid bg-dark">
+			<div id="app">
+				<h1 class="p-5">Sketchulate</h1>
+				<div v-if="page === 'main'">
+					<div class="form-group">
+						<label for=""><h3>Name</h3></label>
+						<input v-model="userInput" type="text" class="form-control w-25 mx-auto my-3" />
+						<div v-if="userInput">
+							<button
+								v-if="!players.length"
+								@click="play('h')"
+								class="btn btn-primary p-3 m-3"
+								btn-lg
+							>
+								Sketch
+							</button>
+							<button
+								v-if="players.length"
+								@click="play('g')"
+								class="btn btn-success p-3 m-3"
+								btn-lg
+							>
+								Speculate
+							</button>
+						</div>
+					</div>
+				</div>
+				<div v-show="page === 'play'">
+					<div v-if="user.type === 'h'">
+						<div v-if="!promptSet" class="form-group">
+							<label><h3>What are you going to sketch?</h3></label>
+							<input v-model="prompt" type="text" class="form-control w-25 mx-auto my-3" />
+							<div v-if="prompt">
+								<button @click="setPrompt" class="btn btn-primary p-3 m-3" btn-lg>Confirm</button>
+							</div>
+						</div>
+					</div>
+					<div v-if="!hostStarted">
+						<h2 v-if="players.length < 2">Waiting for players...</h2>
+						<div v-else>
+							<h2>Players in queue...</h2>
+							<ul class="list-group text-dark">
+								<li v-for="player in players" class="list-group-item w-25 mx-auto my-3">
+									{{player.name}}
+								</li>
+							</ul>
+							<h2 v-if="user.type === 'g'">Waiting for host</h2>
+							<button
+								@click="hostStart"
+								v-if="user.type === 'h' && promptSet"
+								class="btn btn-primary p-3 m-3"
+								btn-lg
+							>
+								Start
+							</button>
+						</div>
+					</div>
+					<div v-show="hostStarted">
+						<div>
+							<canvas
+								class="border border-primary bg-light m-3"
+								id="canvas"
+								width="800"
+								height="650"
+								@mousemove="draw"
+								@mousedown="beginDrawing"
+								@mouseup="stopDrawing"
+							></canvas>
+						</div>
+						<div v-if="user.type == 'g'">
+							<div v-if="user.remainingGuesses > 0">
+								<div class="form-group">
+									<label><h4>Speculate ({{user.remainingGuesses}} remaining)</h4></label>
+									<input v-model="guess" type="text" class="form-control w-25 mx-auto my-3" />
+									<div v-if="guess">
+										<button @click="guessWord" class="btn btn-primary p-3 m-3" btn-lg>Guess</button>
+									</div>
+								</div>
+							</div>
+							<div v-if="user.remainingGuesses == 0"><h4>You are out of guesses :(</h4></div>
+						</div>
+						<div v-else>
+							<h4>Sketching {{prompt}}</h4>
+						</div>
+						<div v-if="roundOver">
+							<h3>Round over</h3>
+							<div v-if="user.type === 'h'">
+								<button @click="newGame('continue')" class="btn btn-success p-3 m-3" btn-lg>
+									Continue
+								</button>
+								<button
+									@click="newGame('restart')"
+									class="btn btn-danger text-light p-3 m-3"
+									btn-lg
+								>
+									New Game
+								</button>
+							</div>
+							<h4 v-else>Waiting for host...</h4>
+						</div>
+						<p v-for="(toast) in toasts">{{toast}}</p>
+						<ul class="list-group px-5 mx-5 text-dark">
+							<li v-for="player in players" class="list-group-item w-25 mx-auto my-3">
+								{{player.name}} - {{player.score}} points
+							</li>
+						</ul>
+					</div>
+				</div>
+			</div>
+		</div>
+		<script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
+		<script src="app.js"></script>
+	</body>
+</html>

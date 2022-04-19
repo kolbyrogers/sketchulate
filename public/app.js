@@ -139,7 +139,7 @@ const app = new Vue({
 		},
 	},
 	created: function () {
-		this.connection = new WebSocket("ws://sketchulate.herokuapp.com/");
+		this.connection = new WebSocket("https://sketchulate.herokuapp.com/");
 
 		this.connection.onmessage = function (event) {
 			const message = event.data;

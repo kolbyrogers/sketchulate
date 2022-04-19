@@ -185,6 +185,9 @@ const app = new Vue({
 					app.promptSet = false;
 					app.roundOver = false;
 					app.page = "main";
+					if (data.message != null && this.page != "main") {
+						alert(data.message);
+					}
 					console.log("Restarted!");
 					break;
 				case "continue":

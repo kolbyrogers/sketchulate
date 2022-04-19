@@ -97,6 +97,7 @@ wss.on("connection", (ws) => {
 				PLAYER_LIST = [];
 				const restart = {
 					type: "restart",
+					message: null,
 				};
 				wss.clients.forEach((client) => {
 					if (client.readyState === WebSocket.OPEN) {
@@ -135,6 +136,7 @@ wss.on("connection", (ws) => {
 		PLAYER_LIST = [];
 		const restart = {
 			type: "restart",
+			message: "Player disconnected :(",
 		};
 		wss.clients.forEach((client) => {
 			if (client.readyState === WebSocket.OPEN) {

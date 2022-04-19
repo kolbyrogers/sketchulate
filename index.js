@@ -3,6 +3,7 @@ const express = require("express");
 
 const PORT = process.env.PORT || 8080;
 const app = express(PORT);
+app.use(express.static("public"));
 server = app.listen(PORT);
 
 var WORD_TO_GUESS = "";

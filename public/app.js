@@ -139,7 +139,8 @@ const app = new Vue({
 		},
 	},
 	created: function () {
-		this.connection = new WebSocket("https://sketchulate.herokuapp.com/");
+		var HOST = location.origin.replace(/^http/, 'ws')
+		this.connection = new WebSocket(HOST);
 
 		this.connection.onmessage = function (event) {
 			const message = event.data;

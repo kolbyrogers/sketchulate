@@ -130,4 +130,17 @@ wss.on("connection", (ws) => {
 				break;
 		}
 	});
+	ws.on("close", (id) => {
+		wss.clients.delete(ws);
+		PLAYER_LIST = [];
+		const restart = {
+			type: "restart",
+		};
+		wss.clients.forEach((client) => {
+			if (client.readyState === WebSocket.OPEN) {
+				client.send(JSON.stringify(restart));
+			}
+		});
+		console.log("socket disconnected");
+	});
 });

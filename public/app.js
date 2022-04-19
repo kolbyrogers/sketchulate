@@ -139,7 +139,7 @@ const app = new Vue({
 		},
 	},
 	created: function () {
-		var HOST = location.origin.replace(/^http/, 'ws')
+		var HOST = location.origin.replace(/^http/, "ws");
 		this.connection = new WebSocket(HOST);
 
 		this.connection.onmessage = function (event) {

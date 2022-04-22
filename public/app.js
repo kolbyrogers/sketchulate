@@ -16,6 +16,7 @@ const app = new Vue({
 		hostStarted: false,
 		toasts: [],
 		roundOver: false,
+		word: "",
 	},
 	methods: {
 		isRoundOver: function () {
@@ -27,6 +28,10 @@ const app = new Vue({
 				}
 			}
 			this.roundOver = true;
+			roundOver = {
+				type: "round over",
+			};
+			this.connection.send(JSON.stringify(roundOver));
 		},
 		newGame: function (status) {
 			var newGame = {
@@ -50,6 +55,7 @@ const app = new Vue({
 			}, 5000);
 		},
 		hostStart: function () {
+			this.setPrompt();
 			const start = {
 				type: "start",
 			};
@@ -91,6 +97,11 @@ const app = new Vue({
 			this.canvas = c.getContext("2d");
 			this.canvas.clearRect(0, 0, c.width, c.height);
 		},
+		setUpCanvasWaiting: function () {
+			var c = document.getElementById("waiting-canvas");
+			this.canvas = c.getContext("2d");
+			this.canvas.clearRect(0, 0, c.width, c.height);
+		},
 		drawLine: function (x1, y1, x2, y2) {
 			let ctx = this.canvas;
 			ctx.beginPath();
@@ -107,7 +118,7 @@ const app = new Vue({
 				x2: x2,
 				y2: y2,
 			};
-			if (this.user.type == "h") {
+			if (this.user.type == "h" && this.page !== "waiting") {
 				this.connection.send(JSON.stringify(data));
 			}
 		},
@@ -137,6 +148,11 @@ const app = new Vue({
 				}
 			}
 		},
+		handleUserWait: function () {
+			app.user = { type: "h" };
+			app.page = "waiting";
+			app.setUpCanvasWaiting();
+		},
 	},
 	created: function () {
 		var HOST = location.origin.replace(/^http/, "ws");
@@ -147,23 +163,33 @@ const app = new Vue({
 			const data = JSON.parse(message);
 			switch (data.type) {
 				case "greeting":
-					console.log(data.greeting);
+					app.handleUserWait();
 					break;
 				case "coordinates":
-					if (app.user.type) {
+					if (app.user.type && app.page != "waiting") {
 						app.drawLine(data.x1, data.y1, data.x2, data.y2);
+					}
+					break;
+				case "word":
+					if (app.user.type) {
+						app.word = data.word;
+					} else {
+						app.handleUserWait();
 					}
 					break;
 				case "players":
 					app.players = data.players;
-					console.log(app.players);
 					app.getUserFromPlayerList();
 					break;
 				case "start":
 					app.hostStarted = true;
 					break;
 				case "correctGuess":
-					app.makeToast(`${data.user.name} guessed correctly!`);
+					if (data.user.name != app.user.name) {
+						app.makeToast(`${data.user.name} guessed correctly!`);
+					} else {
+						app.makeToast("Correct!");
+					}
 					app.players = data.players;
 					app.getUserFromPlayerList();
 					app.isRoundOver();
@@ -171,7 +197,7 @@ const app = new Vue({
 				case "incorrectGuess":
 					app.players = data.players;
 					app.getUserFromPlayerList();
-					if (data.user.remainingGuesses == 0) {
+					if (data.user.remainingGuesses == 0 && data.user.name != app.user.name) {
 						app.makeToast(`${data.user.name} ran out of guesses`);
 					}
 					app.isRoundOver();
@@ -188,9 +214,14 @@ const app = new Vue({
 					if (data.message != null && this.page != "main") {
 						alert(data.message);
 					}
-					console.log("Restarted!");
 					break;
 				case "continue":
+					if (app.page == "waiting") {
+						app.user = {};
+						app.page = "main";
+					} else {
+						app.page = "play";
+					}
 					app.players = data.players;
 					app.getUserFromPlayerList();
 					app.hostStarted = false;
@@ -199,7 +230,6 @@ const app = new Vue({
 					app.promptSet = false;
 					app.roundOver = false;
 					app.setUpCanvas();
-					app.page = "play";
 					break;
 			}
 		};

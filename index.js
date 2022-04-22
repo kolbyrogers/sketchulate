@@ -6,143 +6,198 @@ const app = express(PORT);
 app.use(express.static("public"));
 server = app.listen(PORT);
 
-var WORD_TO_GUESS = "";
-var PLAYER_LIST = [];
-
 const wss = new WebSocket.Server({ server });
-wss.on("connection", (ws) => {
-	console.log("socket connected...");
-	const greeting = {
-		type: "players",
-		players: PLAYER_LIST,
-	};
-	ws.send(JSON.stringify(greeting));
+
+wss.on("connection", (ws, req) => {
+	var message = handleNewConnection(ws, req);
+	ws.send(JSON.stringify(message));
 
 	ws.on("message", (message) => {
 		const data = JSON.parse(message);
-		console.log("Parsed message:", data);
 		switch (data.type) {
 			case "coordinates":
-				wss.clients.forEach((client) => {
-					if (client !== ws && client.readyState === WebSocket.OPEN) {
-						client.send(JSON.stringify(data));
-					}
-				});
+				sendToOthers(data, ws);
 				break;
 			case "player":
-				PLAYER_LIST.push(data.player);
-				console.log("updated player list:", PLAYER_LIST);
-				var players = {
-					type: "players",
-					players: PLAYER_LIST,
-				};
-				wss.clients.forEach((client) => {
-					if (client.readyState === WebSocket.OPEN) {
-						client.send(JSON.stringify(players));
-					}
-				});
+				var message = handleNewPlayer(data, ws);
+				sendToAll(message);
 				break;
 			case "prompt":
-				console.log(data.user.name, "is going to draw:", data.prompt);
-				WORD_TO_GUESS = data.prompt.toLowerCase();
+				var message = handlePrompt(data);
+				sendToAll(message);
 				break;
 			case "guess":
-				console.log(data.user.name, "guessed:", data.guess);
-				if (data.guess.toLowerCase() === WORD_TO_GUESS) {
-					var guesser = PLAYER_LIST.filter((player) => {
-						return player.name == data.user.name;
-					});
-					guesser[0].score += 1;
-					guesser[0].remainingGuesses = -1;
-					var drawer = PLAYER_LIST.filter((player) => {
-						return player.type === "h";
-					});
-					drawer[0].score += 1;
-					const correctGuess = {
-						type: "correctGuess",
-						user: data.user,
-						players: PLAYER_LIST,
-					};
-					wss.clients.forEach((client) => {
-						if (client.readyState === WebSocket.OPEN) {
-							client.send(JSON.stringify(correctGuess));
-						}
-					});
-				} else {
-					data.user.remainingGuesses -= 1;
-					var guesser = PLAYER_LIST.filter((player) => {
-						return player.name == data.user.name;
-					});
-					guesser[0].remainingGuesses -= 1;
-					const incorrectGuess = {
-						type: "incorrectGuess",
-						user: data.user,
-						players: PLAYER_LIST,
-					};
-					wss.clients.forEach((client) => {
-						if (client.readyState === WebSocket.OPEN) {
-							client.send(JSON.stringify(incorrectGuess));
-						}
-					});
-				}
+				var message = handleGuess(data);
+				sendToAll(message);
 				break;
 			case "start":
-				wss.clients.forEach((client) => {
-					if (client.readyState === WebSocket.OPEN) {
-						client.send(JSON.stringify(data));
-					}
-				});
+				gameState.isStarted = true;
+				sendToAll(data);
+				break;
+			case "round over":
+				gameState.isStarted = false;
 				break;
 			case "restart":
-				PLAYER_LIST = [];
-				const restart = {
-					type: "restart",
-					message: null,
-				};
-				wss.clients.forEach((client) => {
-					if (client.readyState === WebSocket.OPEN) {
-						client.send(JSON.stringify(restart));
-					}
-				});
+				var message = handleRestart();
+				sendToAll(message);
 				break;
 			case "continue":
-				var hostChanged = false;
-				for (var i = 0; i < PLAYER_LIST.length; i++) {
-					PLAYER_LIST[i].remainingGuesses = 3;
-					if (PLAYER_LIST[i].type === "h") {
-						PLAYER_LIST[i].type = "g";
-						continue;
-					}
-					if (PLAYER_LIST[i].type !== "h" && !hostChanged) {
-						PLAYER_LIST[i].type = "h";
-						hostChanged = true;
-					}
-				}
-				console.log("REFRESHED", PLAYER_LIST);
-				const game = {
-					type: "continue",
-					players: PLAYER_LIST,
-				};
-				wss.clients.forEach((client) => {
-					if (client.readyState === WebSocket.OPEN) {
-						client.send(JSON.stringify(game));
-					}
-				});
+				var message = handleContinue();
+				sendToAll(message);
 				break;
 		}
 	});
-	ws.on("close", (id) => {
-		wss.clients.delete(ws);
-		PLAYER_LIST = [];
-		const restart = {
-			type: "restart",
-			message: "Player disconnected :(",
-		};
-		wss.clients.forEach((client) => {
-			if (client.readyState === WebSocket.OPEN) {
-				client.send(JSON.stringify(restart));
-			}
-		});
-		console.log("socket disconnected");
+	ws.on("close", () => {
+		var message = handleDisconnect(ws);
+		sendToAll(message);
 	});
 });
+
+var gameState = {
+	word: "",
+	playerList: [],
+	roundsPlayed: 0,
+	isStarted: false,
+};
+
+sendToAll = (message) => {
+	wss.clients.forEach((client) => {
+		if (client.readyState === WebSocket.OPEN) {
+			client.send(JSON.stringify(message));
+		}
+	});
+};
+
+sendToOthers = (message, ws) => {
+	wss.clients.forEach((client) => {
+		if (client !== ws && client.readyState === WebSocket.OPEN) {
+			client.send(JSON.stringify(message));
+		}
+	});
+};
+
+getUserFromPlayerList = (user) => {
+	var player = gameState.playerList.filter((player) => {
+		return player.name == user.name;
+	});
+	return player[0];
+};
+
+handleNewConnection = (ws, req) => {
+	ws.id = req.headers["sec-websocket-key"];
+	if (gameState.isStarted) {
+		var message = { type: "greeting" };
+	} else {
+		var message = { type: "players", players: gameState.playerList };
+	}
+	return message;
+};
+
+handleDisconnect = (ws) => {
+	for (var i = 0; i < gameState.playerList.length; i++) {
+		player = gameState.playerList[i];
+		if (player.id == ws.id) {
+			gameState.playerList.splice(i, 1);
+			if (player.type == "h") {
+				var message = handleContinue();
+				return message;
+			}
+			break;
+		}
+	}
+	if (gameState.isStarted && gameState.playerList.length <= 1) {
+		var message = handleRestart();
+	} else {
+		var message = {
+			type: "players",
+			players: gameState.playerList,
+		};
+	}
+	return message;
+};
+
+handleNewPlayer = (data, ws) => {
+	if (gameState.isStarted) {
+		return { type: "greeting" };
+	}
+	data.player.id = ws.id;
+	gameState.playerList.push(data.player);
+	var message = {
+		type: "players",
+		players: gameState.playerList,
+	};
+	return message;
+};
+
+handlePrompt = (data) => {
+	gameState.word = data.prompt.toLowerCase();
+	var message = {
+		type: "word",
+		word: gameState.word,
+	};
+	return message;
+};
+
+handleGuess = (data) => {
+	if (data.guess.toLowerCase() === gameState.word) {
+		return handleCorrectGuess(data.user);
+	} else {
+		return handleIncorrectGuess(data.user);
+	}
+};
+
+handleCorrectGuess = (user) => {
+	var guesser = getUserFromPlayerList(user);
+	guesser.score += 1;
+	guesser.remainingGuesses = -1;
+	const message = {
+		type: "correctGuess",
+		user: guesser,
+		players: gameState.playerList,
+	};
+	return message;
+};
+
+handleIncorrectGuess = (user) => {
+	var guesser = getUserFromPlayerList(user);
+	guesser.remainingGuesses -= 1;
+	const message = {
+		type: "incorrectGuess",
+		user: guesser,
+		players: gameState.playerList,
+	};
+	return message;
+};
+
+handleRestart = () => {
+	gameState.playerList = [];
+	gameState.roundsPlayed = 0;
+	gameState.isStarted = false;
+	gameState.word = "";
+	const message = {
+		type: "restart",
+		message: null,
+	};
+	return message;
+};
+
+setNewHost = () => {
+	gameState.playerList.forEach((player) => {
+		player.remainingGuesses = 3;
+		if (player.type == "h") {
+			player.type = "g";
+		}
+	});
+	var hostIndex = gameState.roundsPlayed % gameState.playerList.length;
+	gameState.playerList[hostIndex].type = "h";
+};
+
+handleContinue = () => {
+	gameState.roundsPlayed++;
+	setNewHost();
+	const message = {
+		type: "continue",
+		players: gameState.playerList,
+	};
+	return message;
+};
